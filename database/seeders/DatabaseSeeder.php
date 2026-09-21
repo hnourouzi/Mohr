@@ -55,7 +55,32 @@ class DatabaseSeeder extends Seeder
         User::factory()->create([
             'name' => 'Test User',
             'email' => 'test@example.com',
-        ]);
+        ])->each(function (User $user) {
+            $wallet = Wallet::factory()->create([
+                'user_id' => $user->id,
+                'balance' => 0,
+            ]);
+            
+            $initialTopUp = Faker::create()->numberBetween(5000, 20000);
+
+            WalletTransaction::create([
+                'wallet_id' => $wallet->id,
+                'type' => WalletTransactionType::Credit->value,
+                'amount' => $initialTopUp,
+                'balance_after' => $initialTopUp,
+                'reference_type' => fake()->randomElement(['wallet', 'content']),
+                'reference_id' => fake()->numberBetween(1, 100000),
+                'description' => 'Initial top up',
+            ]);
+
+            $wallet->update(['balance' => $initialTopUp]);
+
+            Content::factory(Faker::create()->numberBetween(2, 5))
+                ->create(['user_id' => $user->id])
+                ->each(function (Content $content) use ($wallet) {
+                    $this->attachModerationTrail($content, $wallet);
+                });
+        });
 
         $this->call([
             BlacklistWordSeeder::class,

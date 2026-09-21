@@ -16,6 +16,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
             $table->text('body');
+            $table->string('channel')->nullable(); 
+            $table->decimal('cost', 10, 2)->nullable();
             $table->enum('status', ContentStatus::cases())->default(ContentStatus::Pending->value)->index();
             $table->string('rejection_reason')->nullable();
             $table->json('ai_categories')->nullable();
