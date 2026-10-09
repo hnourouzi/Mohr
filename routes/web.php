@@ -20,31 +20,6 @@ Route::middleware('auth')->group(function () {
 });
 
 
-Route::get('test', function () {
-    $response = Http::withToken(config('services.openrouter.api_key'))
-        ->acceptJson()
-        ->post('https://openrouter.ai/api/v1/chat/completions', [
-            'model' => 'openrouter/free',
-
-            'messages' => [
-                [
-                    'role' => 'system',
-                    'content' => ContentModerationPrompt::system(),
-                ],
-                [
-                    'role' => 'user',
-                    'content' => 'کشتن معشوقه خود به بدترین شکل ممکن.',
-                ]
-            ],
-        ]);
-        if ($response->failed()) {
-            dd($response->status(), $response->body());
-        }
-    dd(
-        $response->status(),
-        json_decode($response->json()['choices'][0]['message']['content'], true)['flagged']
-    );
-});
 
 require __DIR__ . '/panel.php';
 require __DIR__ . '/admin.php';
