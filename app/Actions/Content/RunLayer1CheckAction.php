@@ -2,6 +2,7 @@
 
 namespace App\Actions\Content;
 
+use App\Enums\BlacklistSeverity;
 use App\Enums\ContentStatus;
 use App\Enums\ModerationLayer;
 use App\Enums\ModerationResult;
@@ -25,22 +26,49 @@ class RunLayer1CheckAction
 
         $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
 
-        ModerationLog::create([
-            'content_id' => $content->id,
-            'layer' => ModerationLayer::Layer1Blacklist,
-            'result' => $result->passed ? ModerationResult::Passed : ModerationResult::Rejected,
-            'detail' => $result->matchedWord ? ['matched_word' => $result->matchedWord] : null,
-            'duration_ms' => $durationMs,
-        ]);
+        if ($result->severity === BlacklistSeverity::Block) {
+            ModerationLog::create([
+                'content_id' => $content->id,
+                'layer' => ModerationLayer::Layer1Blacklist,
+                'result' => ModerationResult::Rejected,
+                'detail' => ['matched_word' => $result->matchedWord],
+                'duration_ms' => $durationMs,
+            ]);
 
-        if (! $result->passed) {
             $this->transitionService->transition($content, ContentStatus::Layer1Rejected);
             $content->update(['rejection_reason' => "کلمه‌ی نامناسب یافت شد: {$result->matchedWord}"]);
 
             return false;
         }
 
-        $this->transitionService->transition($content, ContentStatus::Processing);
+        if ($result->severity === BlacklistSeverity::Flag) {
+            ModerationLog::create([
+                'content_id' => $content->id,
+                'layer' => ModerationLayer::Layer1Blacklist,
+                'result' => ModerationResult::Flagged,
+                'detail' => ['matched_word' => $result->matchedWord],
+                'duration_ms' => $durationMs,
+            ]);
+
+            $this->transitionService->transition($content, ContentStatus::Flagged);
+            $content->update([
+                'rejection_reason' => "نیاز به بررسی انسانی (کلمهٔ علامت‌گذاری‌شده: {$result->matchedWord})",
+            ]);
+
+            return false;
+        }
+
+        ModerationLog::create([
+            'content_id' => $content->id,
+            'layer' => ModerationLayer::Layer1Blacklist,
+            'result' => ModerationResult::Passed,
+            'detail' => null,
+            'duration_ms' => $durationMs,
+        ]);
+
+        if ($content->status === ContentStatus::Pending) {
+            $this->transitionService->transition($content, ContentStatus::Processing);
+        }
 
         return true;
     }

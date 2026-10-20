@@ -9,7 +9,7 @@ use App\Models\Content;
 class ContentStatusTransitionService
 {
     private const array ALLOWED_TRANSITIONS = [
-        'pending' => ['processing', 'layer1_rejected'],
+        'pending' => ['processing', 'layer1_rejected', 'flagged', 'failed'],
         'processing' => ['approved', 'rejected', 'flagged', 'failed'],
         'failed' => ['processing'],
     ];

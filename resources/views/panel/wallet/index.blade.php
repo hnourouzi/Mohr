@@ -14,29 +14,9 @@
         </div>
 
         <div class="md:col-span-2">
-            <form method="POST" action="{{ route('panel.wallet.topup') }}" class="bg-white border border-ink/10 rounded p-6">
-                @csrf
-                <label class="block text-sm font-medium mb-2">شارژ کیف پول</label>
-                <div class="flex gap-3">
-                    <input type="number" name="amount" min="1000" step="1000" value="{{ old('amount') }}"
-                           placeholder="مبلغ به تومان" required
-                           class="flex-1 px-4 py-2.5 rounded border border-ink/15 focus:border-seal focus:outline-none focus:ring-1 focus:ring-seal transition">
-                    <button type="submit" class="px-6 py-2.5 rounded bg-ink text-paper font-medium hover:bg-ink/90 transition">
-                        شارژ حساب
-                    </button>
-                </div>
-                @error('amount')
-                    <p class="text-reject text-sm mt-2">{{ $message }}</p>
-                @enderror
-                <div class="flex gap-2 mt-3">
-                    @foreach ([5000, 10000, 20000, 50000] as $amount)
-                        <button type="button" onclick="document.querySelector('input[name=amount]').value = {{ $amount }}"
-                                class="text-xs px-3 py-1.5 rounded border border-ink/15 hover:border-seal transition">
-                            {{ number_format($amount) }}
-                        </button>
-                    @endforeach
-                </div>
-            </form>
+            <div class="bg-white border border-ink/10 rounded p-6 text-sm text-ink/70">
+                شارژ آنلاین کیف پول از طریق پنل کاربری فعال نیست. برای افزایش موجودی با پشتیبانی تماس بگیرید یا از مدیر سیستم درخواست شارژ دستی کنید.
+            </div>
         </div>
     </div>
 
@@ -49,7 +29,7 @@
                     <p class="text-xs text-ink/40 mt-1">{{ $tx->created_at->format('Y/m/d H:i') }}</p>
                 </div>
                 <div class="text-left">
-                    <p class="font-medium {{ $tx->type->value === 'credit' ? 'text-approve' : 'text-reject' }}">
+                    <p class="font-medium {{ in_array($tx->type->value, ['credit', 'refund'], true) ? 'text-approve' : 'text-reject' }}">
                         {{ $tx->type->sign() }}{{ number_format($tx->amount) }}
                     </p>
                     <p class="text-xs text-ink/40 mt-1">موجودی: {{ number_format($tx->balance_after) }}</p>

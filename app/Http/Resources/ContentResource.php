@@ -19,6 +19,7 @@ class ContentResource extends JsonResource
             'cost' => $this->cost,
             'processed_at' => $this->processed_at?->toIso8601String(),
             'created_at' => $this->created_at->toIso8601String(),
+            'logs' => ModerationLogResource::collection($this->whenLoaded('logs')),
         ];
     }
 }

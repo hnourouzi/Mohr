@@ -27,7 +27,7 @@ class UserController extends Controller
 
     public function topUp(TopUpWalletRequest $request, User $user, TopUpWalletAction $action): RedirectResponse
     {
-        $action->execute($user, $request->validated('amount'));
+        $action->execute($user, (int) $request->validated('amount'));
 
         return back()->with('success', "حساب کاربر {$user->name} شارژ شد.");
     }

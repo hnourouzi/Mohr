@@ -12,18 +12,67 @@ class BlacklistCheckService
     {
         $normalizedBody = mb_strtolower($body);
 
-        $words = BlacklistWord::pluck('severity', 'word');
+        $words = BlacklistWord::query()
+            ->get(['word', 'severity'])
+            ->sortByDesc(fn (BlacklistWord $entry) => mb_strlen($entry->word))
+            ->values();
 
-        foreach ($words as $word => $severity) {
-            if (str_contains($normalizedBody, mb_strtolower($word))) {
-                return new BlacklistCheckResult(
-                    passed: $severity !== BlacklistSeverity::Block->value,
-                    matchedWord: $word,
-                    severity: BlacklistSeverity::from($severity),
-                );
+        $blockMatch = null;
+        $flagMatch = null;
+
+        foreach ($words as $entry) {
+            $word = $entry->word;
+            $normalizedWord = mb_strtolower($word);
+
+            if (! $this->containsWholeWord($normalizedBody, $normalizedWord)) {
+                continue;
             }
+
+            $severity = $entry->severity instanceof BlacklistSeverity
+                ? $entry->severity
+                : BlacklistSeverity::from((string) $entry->severity);
+
+            if ($severity === BlacklistSeverity::Block) {
+                $blockMatch = $word;
+
+                break;
+            }
+
+            $flagMatch ??= $word;
+        }
+
+        if ($blockMatch !== null) {
+            return new BlacklistCheckResult(
+                passed: false,
+                matchedWord: $blockMatch,
+                severity: BlacklistSeverity::Block,
+            );
+        }
+
+        if ($flagMatch !== null) {
+            return new BlacklistCheckResult(
+                passed: false,
+                matchedWord: $flagMatch,
+                severity: BlacklistSeverity::Flag,
+            );
         }
 
         return new BlacklistCheckResult(passed: true);
+    }
+
+    /**
+     * Match blacklist terms as whole words/tokens, not arbitrary substrings.
+     */
+    private function containsWholeWord(string $haystack, string $needle): bool
+    {
+        if ($needle === '') {
+            return false;
+        }
+
+        $pattern = '/(?<![\p{L}\p{N}])'
+            .preg_quote($needle, '/')
+            .'(?![\p{L}\p{N}])/iu';
+
+        return preg_match($pattern, $haystack) === 1;
     }
 }

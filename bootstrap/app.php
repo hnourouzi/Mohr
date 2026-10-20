@@ -1,10 +1,12 @@
 <?php
 
+use App\Exceptions\InsufficientBalanceException;
+use App\Exceptions\InvalidStatusTransitionException;
+use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
-use App\Http\Middleware\EnsureUserIsAdmin;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -21,4 +23,20 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*'),
         );
+
+        $exceptions->render(function (InsufficientBalanceException $e, Request $request) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $e->getMessage()], 422);
+            }
+
+            return back()->withErrors(['balance' => $e->getMessage()]);
+        });
+
+        $exceptions->render(function (InvalidStatusTransitionException $e, Request $request) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $e->getMessage()], 409);
+            }
+
+            return back()->withErrors(['status' => $e->getMessage()]);
+        });
     })->create();

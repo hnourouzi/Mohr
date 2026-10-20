@@ -15,7 +15,7 @@ class DeductCreditAction
 
     public function execute(User $user, Content $content): WalletTransaction
     {
-        $cost = config('moderation.cost_per_request', 1000);
+        $cost = (int) config('moderation.cost_per_request', 1000);
 
         return $this->walletService->debit(
             wallet: $user->wallet,

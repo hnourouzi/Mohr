@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Notifications\Notifiable;
 use App\Enums\UserRole;
 
-#[Fillable(['name', 'email', 'mobile', 'role','password'])]
+#[Fillable(['name', 'email', 'mobile', 'password'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {

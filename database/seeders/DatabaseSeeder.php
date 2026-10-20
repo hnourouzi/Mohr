@@ -14,6 +14,7 @@ use App\Enums\ModerationResult;
 use App\Enums\ContentStatus;
 use App\Enums\ModerationLayer;
 use App\Enums\WalletTransactionType;
+use Illuminate\Support\Facades\DB;
 
 class DatabaseSeeder extends Seeder
 {
@@ -38,8 +39,8 @@ class DatabaseSeeder extends Seeder
                 'type' => WalletTransactionType::Credit->value,
                 'amount' => $initialTopUp,
                 'balance_after' => $initialTopUp,
-                'reference_type' => fake()->randomElement(['wallet', 'content']),
-                'reference_id' => fake()->numberBetween(1, 100000),
+                'reference_type' => null,
+                'reference_id' => null,
                 'description' => 'Initial top up',
             ]);
 
@@ -68,8 +69,8 @@ class DatabaseSeeder extends Seeder
                 'type' => WalletTransactionType::Credit->value,
                 'amount' => $initialTopUp,
                 'balance_after' => $initialTopUp,
-                'reference_type' => fake()->randomElement(['wallet', 'content']),
-                'reference_id' => fake()->numberBetween(1, 100000),
+                'reference_type' => null,
+                'reference_id' => null,
                 'description' => 'Initial top up',
             ]);
 
@@ -122,21 +123,24 @@ class DatabaseSeeder extends Seeder
 
 
         if ($content->status !== ContentStatus::Pending) {
-            $cost = config('moderation.cost_per_request', 1000);
+            $cost = (int) config('moderation.cost_per_request', 1000);
 
-            $newBalance = $wallet->fresh()->balance - $cost;
+            DB::transaction(function () use ($wallet, $content, $cost) {
+                $locked = Wallet::query()->whereKey($wallet->id)->lockForUpdate()->firstOrFail();
+                $newBalance = max($locked->balance - $cost, 0);
 
-            WalletTransaction::create([
-                'wallet_id' => $wallet->id,
-                'type' => WalletTransactionType::Debit->value,
-                'amount' => $cost,
-                'balance_after' => max($newBalance, 0),
-                'reference_type' => Content::class,
-                'reference_id' => $content->id,
-                'description' => 'Content moderation cost #' . $content->id,
-            ]);
+                WalletTransaction::create([
+                    'wallet_id' => $locked->id,
+                    'type' => WalletTransactionType::Debit->value,
+                    'amount' => $cost,
+                    'balance_after' => $newBalance,
+                    'reference_type' => $content->getMorphClass(),
+                    'reference_id' => $content->id,
+                    'description' => 'Content moderation cost #'.$content->id,
+                ]);
 
-            $wallet->decrement('balance', $cost);
+                $locked->update(['balance' => $newBalance]);
+            });
         }
     }
 }

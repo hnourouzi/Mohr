@@ -4,6 +4,8 @@ namespace App\Services\AiModeration;
 
 use App\DTO\AiModeration\AiModerationResult;
 use App\Prompts\Moderation\ContentModerationPrompt;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -12,51 +14,94 @@ class OpenRouterModerationService implements AiModerationServiceInterface
 {
     public function moderate(string $content): AiModerationResult
     {
-        $response = Http::withToken(config('services.openrouter.api_key'))
-            ->acceptJson()
-            ->timeout(30)
-            ->post('https://openrouter.ai/api/v1/chat/completions', [
-                'model' => config('services.openrouter.model', 'openrouter/free'),
-                'temperature' => 0,
-                'response_format' => [
-                    'type' => 'json_object',
-                ],
-                'provider' => [
-                    'require_parameters' => true,
-                ],
-                'messages' => [
-                    [
-                        'role' => 'system',
-                        'content' => ContentModerationPrompt::system(),
-                    ],
-                    [
-                        'role' => 'user',
-                        'content' => $this->userMessage($content),
-                    ],
-                ],
-            ]);
+        $baseUrl = rtrim((string) config('moderation.openrouter.base_url'), '/');
+        $url = $baseUrl.'/chat/completions';
 
-        if ($response->failed()) {
-            throw new RuntimeException(
-                'خطا در ارتباط با OpenRouter: ' . $response->status() . ' - ' . $response->body()
-            );
+        $timeout = (int) config('moderation.openrouter.timeout', 30);
+        $retries = (int) config('moderation.openrouter.http_retries', 2);
+        $sleepMs = (int) config('moderation.openrouter.http_retry_sleep_ms', 500);
+
+        try {
+            $response = Http::withToken(config('services.openrouter.api_key'))
+                ->acceptJson()
+                ->timeout($timeout)
+                ->retry(
+                    $retries,
+                    $sleepMs,
+                    function ($exception, $request) {
+                        if ($exception instanceof ConnectionException) {
+                            return true;
+                        }
+
+                        if ($exception instanceof RequestException) {
+                            $status = $exception->response?->status();
+
+                            return in_array($status, [429, 502, 503, 504], true);
+                        }
+
+                        return false;
+                    },
+                    throw: false,
+                )
+                ->post($url, [
+                    'model' => config('moderation.openrouter.model', config('services.openrouter.model', 'openrouter/free')),
+                    'temperature' => 0,
+                    'max_tokens' => (int) config('moderation.openrouter.max_tokens', 256),
+                    'response_format' => [
+                        'type' => 'json_object',
+                    ],
+                    'provider' => [
+                        'require_parameters' => true,
+                    ],
+                    'messages' => [
+                        [
+                            'role' => 'system',
+                            'content' => ContentModerationPrompt::system(),
+                        ],
+                        [
+                            'role' => 'user',
+                            'content' => $this->userMessage($content),
+                        ],
+                    ],
+                ]);
+        } catch (ConnectionException) {
+            throw new RuntimeException('ارتباط با سرویس هوش مصنوعی برقرار نشد.');
         }
 
-        $result = $this->parseModelJson((string) $response->json('choices.0.message.content'));
-        $flagged = $this->toBool($result['flagged'] ?? false);
-        $categories = $this->normalizeCategories($result['categories'] ?? []);
+        if ($response->failed()) {
+            Log::warning('OpenRouter moderation HTTP failure', [
+                'status' => $response->status(),
+            ]);
 
-        Log::info('OpenRouter moderation result', [
+            throw new RuntimeException('خطا در ارتباط با سرویس هوش مصنوعی.');
+        }
+
+        $rawJson = $response->json('choices.0.message.content');
+        if (! is_string($rawJson) || $rawJson === '') {
+            throw new RuntimeException('پاسخ سرویس هوش مصنوعی نامعتبر است.');
+        }
+
+        $result = $this->parseModelJson($rawJson);
+
+        if (! array_key_exists('flagged', $result)) {
+            throw new RuntimeException('پاسخ سرویس هوش مصنوعی فاقد فیلد flagged است.');
+        }
+
+        $flagged = $this->toBool($result['flagged']);
+        $categories = $this->normalizeCategories($result['categories'] ?? []);
+        $reason = isset($result['reason']) && is_string($result['reason']) ? $result['reason'] : null;
+
+        Log::info('OpenRouter moderation completed', [
             'model' => $response->json('model'),
-            'content_preview' => mb_substr($content, 0, 80),
             'flagged' => $flagged,
-            'categories' => $categories,
+            'category_count' => count($categories),
         ]);
 
         return new AiModerationResult(
             flagged: $flagged,
             categories: $categories,
-            rawResponse: $response->json(),
+            rawResponse: $response->json() ?? [],
+            reason: $reason,
         );
     }
 
@@ -80,7 +125,7 @@ TEXT;
         $result = json_decode(trim($cleaned), true);
 
         if (! is_array($result)) {
-            throw new RuntimeException('پاسخ OpenRouter قابل تجزیه نیست.');
+            throw new RuntimeException('پاسخ سرویس هوش مصنوعی قابل تجزیه نیست.');
         }
 
         return $result;

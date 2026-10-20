@@ -7,6 +7,7 @@ use App\Exceptions\InvalidStatusTransitionException;
 use App\Jobs\ModerateContentJob;
 use App\Models\Content;
 use App\Services\Content\ContentStatusTransitionService;
+use Illuminate\Support\Facades\DB;
 
 class RetryModerationAction
 {
@@ -16,14 +17,20 @@ class RetryModerationAction
 
     public function execute(Content $content): void
     {
-        if (! $content->isRetryable()) {
-            throw new InvalidStatusTransitionException($content->status, ContentStatus::Processing);
-        }
+        DB::transaction(function () use ($content) {
+            $locked = Content::query()->whereKey($content->id)->lockForUpdate()->firstOrFail();
 
-        $content->increment('retry_count');
+            if (! $locked->isRetryable()) {
+                throw new InvalidStatusTransitionException($locked->status, ContentStatus::Processing);
+            }
 
-        $this->transitionService->transition($content, ContentStatus::Processing);
+            $locked->increment('retry_count');
 
-        ModerateContentJob::dispatch($content);
+            $this->transitionService->transition($locked, ContentStatus::Processing);
+
+            ModerateContentJob::dispatch($locked)
+                ->onQueue('moderation')
+                ->afterCommit();
+        });
     }
 }

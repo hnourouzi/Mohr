@@ -13,11 +13,16 @@ class RefundCreditAction
 
     public function execute(Content $content): void
     {
-        $this->walletService->credit(
+        $content->loadMissing('user.wallet');
+
+        if (! $content->user?->wallet) {
+            return;
+        }
+
+        $this->walletService->refundForContent(
             wallet: $content->user->wallet,
-            amount: $content->cost,
+            content: $content,
             description: "بازگشت وجه به دلیل خطا در بررسی محتوا #{$content->id}",
-            reference: $content,
         );
     }
 }

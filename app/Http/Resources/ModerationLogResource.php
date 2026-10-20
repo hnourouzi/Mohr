@@ -7,13 +7,15 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class ModerationLogResource extends JsonResource
 {
-    /**
-     * Transform the resource into an array.
-     *
-     * @return array<string, mixed>
-     */
     public function toArray(Request $request): array
     {
-        return parent::toArray($request);
+        return [
+            'id' => $this->id,
+            'layer' => $this->layer->value,
+            'result' => $this->result->value,
+            'detail' => $this->detail,
+            'duration_ms' => $this->duration_ms,
+            'created_at' => $this->created_at->toIso8601String(),
+        ];
     }
 }
