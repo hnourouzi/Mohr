@@ -38,6 +38,49 @@ class OpenRouterModerationServiceTest extends TestCase
         $this->assertSame('violent content', $result->reason);
     }
 
+    public function test_malformed_json_with_reasoning_inference_flags_violence(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'model' => 'dots-studio/dots-3-note-preview:free',
+                'choices' => [
+                    [
+                        'finish_reason' => 'length',
+                        'message' => [
+                            'content' => null,
+                            'reasoning' => 'This content explicitly mentions killing a person, so it should be flagged.',
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $result = app(OpenRouterModerationService::class)->moderate('کشتن ادم مهم');
+
+        $this->assertTrue($result->flagged);
+        $this->assertContains('violence', $result->categories);
+    }
+
+    public function test_extracts_json_from_reasoning_field(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'choices' => [
+                    [
+                        'message' => [
+                            'content' => null,
+                            'reasoning' => 'Done. {"flagged": false, "categories": [], "reason": "ok"}',
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $result = app(OpenRouterModerationService::class)->moderate('hello');
+
+        $this->assertFalse($result->flagged);
+    }
+
     public function test_malformed_json_throws(): void
     {
         Http::fake([

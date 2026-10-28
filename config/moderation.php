@@ -16,11 +16,14 @@ return [
     */
     'openrouter' => [
         'base_url' => env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
-        'model' => env('OPENROUTER_MODEL', 'openrouter/free'),
-        'timeout' => (int) env('OPENROUTER_TIMEOUT', 30),
-        'max_tokens' => (int) env('OPENROUTER_MAX_TOKENS', 256),
-        'http_retries' => (int) env('OPENROUTER_HTTP_RETRIES', 2),
-        'http_retry_sleep_ms' => (int) env('OPENROUTER_HTTP_RETRY_SLEEP_MS', 500),
+        'model' => env('OPENROUTER_MODEL'),
+        'timeout' => 30,
+        'http_retries' => 2,
+        'http_retry_sleep_ms' => 500,
+        'max_tokens' => 1024,
+        'max_tokens_ceiling' => 4096,
+        'invalid_response_retries' => 1,
+        'reasoning_effort' => env('OPENROUTER_REASONING_EFFORT'),
     ],
 
     'ai_job' => [
