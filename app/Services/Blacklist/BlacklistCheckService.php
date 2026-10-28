@@ -10,7 +10,7 @@ class BlacklistCheckService
 {
     public function check(string $body): BlacklistCheckResult
     {
-        $normalizedBody = mb_strtolower($body);
+        $normalizedBody = $this->normalizeText($body);
 
         $words = BlacklistWord::query()
             ->get(['word', 'severity'])
@@ -21,8 +21,12 @@ class BlacklistCheckService
         $flagMatch = null;
 
         foreach ($words as $entry) {
-            $word = $entry->word;
-            $normalizedWord = mb_strtolower($word);
+            $word = BlacklistWord::normalizeWord($entry->word);
+            if ($word === '') {
+                continue;
+            }
+
+            $normalizedWord = $this->normalizeText($word);
 
             if (! $this->containsWholeWord($normalizedBody, $normalizedWord)) {
                 continue;
@@ -74,5 +78,12 @@ class BlacklistCheckService
             .'(?![\p{L}\p{N}])/iu';
 
         return preg_match($pattern, $haystack) === 1;
+    }
+
+    private function normalizeText(string $text): string
+    {
+        $text = BlacklistWord::normalizeWord($text);
+
+        return mb_strtolower($text);
     }
 }

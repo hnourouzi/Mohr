@@ -86,4 +86,29 @@ class BlacklistCheckServiceTest extends TestCase
         $this->assertFalse($result->passed);
         $this->assertSame('a', $result->matchedWord);
     }
+
+    public function test_illum_block_word_rejects_exact_body(): void
+    {
+        BlacklistWord::create(['word' => 'illum', 'severity' => BlacklistSeverity::Block]);
+
+        $result = $this->service->check('illum');
+
+        $this->assertFalse($result->passed);
+        $this->assertSame('illum', $result->matchedWord);
+    }
+
+    public function test_blacklist_word_with_surrounding_whitespace_still_matches(): void
+    {
+        BlacklistWord::withoutEvents(fn () => BlacklistWord::query()->insert([
+            'word' => 'illum ',
+            'severity' => BlacklistSeverity::Block->value,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]));
+
+        $result = $this->service->check('illum');
+
+        $this->assertFalse($result->passed);
+        $this->assertSame('illum', $result->matchedWord);
+    }
 }

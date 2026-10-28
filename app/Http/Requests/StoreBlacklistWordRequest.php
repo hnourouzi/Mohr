@@ -3,11 +3,21 @@
 namespace App\Http\Requests;
 
 use App\Enums\BlacklistSeverity;
+use App\Models\BlacklistWord;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class StoreBlacklistWordRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('word')) {
+            $this->merge([
+                'word' => BlacklistWord::normalizeWord((string) $this->input('word')),
+            ]);
+        }
+    }
+
     public function authorize(): bool
     {
         return $this->user()?->role === \App\Enums\UserRole::Admin;
