@@ -8,6 +8,7 @@ enum ModerationResult: string
     case Rejected = 'rejected';
     case Flagged = 'flagged';
     case Error = 'error';
+    case Warning = 'warning';
 
     public function label(): string
     {
@@ -16,6 +17,7 @@ enum ModerationResult: string
             self::Rejected => 'رد شد',
             self::Flagged => 'علامت‌گذاری شد',
             self::Error => 'خطا',
+            self::Warning => 'هشدار',
         };
     }
 
@@ -26,6 +28,7 @@ enum ModerationResult: string
             self::Rejected => 'red',
             self::Flagged => 'yellow',
             self::Error => 'gray',
+            self::Warning => 'yellow',
         };
     }
 }

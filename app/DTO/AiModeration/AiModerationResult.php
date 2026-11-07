@@ -2,30 +2,29 @@
 
 namespace App\DTO\AiModeration;
 
+use App\Enums\ModerationVerdict;
+
 readonly class AiModerationResult
 {
+    /**
+     * @param  list<string>  $categories
+     * @param  array<string, mixed>  $rawResponse
+     */
     public function __construct(
-        public bool $flagged,
+        public ModerationVerdict $verdict,
         public array $categories,
         public array $rawResponse,
         public ?string $reason = null,
     ) {}
 
-    /**
-     * Strip message payloads before persisting on the content record.
-     */
     public function sanitizedRawResponse(): array
     {
-        $response = $this->rawResponse;
-
-        if (isset($response['choices']) && is_array($response['choices'])) {
-            foreach ($response['choices'] as $index => $choice) {
-                if (isset($choice['message']['content'])) {
-                    unset($response['choices'][$index]['message']['content']);
-                }
-            }
-        }
-
-        return $response;
+        return [
+            'id' => data_get($this->rawResponse, 'id'),
+            'model' => data_get($this->rawResponse, 'model'),
+            'finish_reason' => data_get($this->rawResponse, 'choices.0.finish_reason'),
+            'content' => data_get($this->rawResponse, 'choices.0.message.content'),
+            'usage' => data_get($this->rawResponse, 'usage'),
+        ];
     }
 }

@@ -1,7 +1,5 @@
 <?php
 
-use App\Enums\ModerationLayer;
-use App\Enums\ModerationResult;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -16,8 +14,8 @@ return new class extends Migration
         Schema::create('moderation_logs', function (Blueprint $table) {
             $table->id();
             $table->foreignId('content_id')->constrained('contents');
-            $table->enum('layer', ModerationLayer::cases())->default(ModerationLayer::Layer1Blacklist->value);
-            $table->enum('result', ModerationResult::cases())->default(ModerationResult::Passed->value);
+            $table->string('layer');
+            $table->string('result');
             $table->text('detail')->nullable();
             $table->integer('duration_ms')->nullable();
             $table->timestamps();

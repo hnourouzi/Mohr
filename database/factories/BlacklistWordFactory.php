@@ -19,7 +19,7 @@ class BlacklistWordFactory extends Factory
     public function definition(): array
     {
         return [
-            'word' => $this->faker->word(),
+            'word' => $this->faker->unique()->word(),
             'severity' => $this->faker->randomElement(BlacklistSeverity::cases())->value,
         ];
     }

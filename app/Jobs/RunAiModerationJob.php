@@ -6,6 +6,7 @@ use App\Actions\Wallet\RefundCreditAction;
 use App\Enums\ContentStatus;
 use App\Enums\ModerationLayer;
 use App\Enums\ModerationResult;
+use App\Enums\ModerationVerdict;
 use App\Events\ContentModerated;
 use App\Models\Content;
 use App\Models\ModerationLog;
@@ -61,35 +62,45 @@ class RunAiModerationJob implements ShouldQueue, ShouldBeUnique
 
         $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
 
-        $newStatus = $result->flagged ? ContentStatus::Rejected : ContentStatus::Approved;
-        $logResult = $result->flagged ? ModerationResult::Rejected : ModerationResult::Passed;
+        $verdict = $result->verdict;
+        $isApproved = $verdict === ModerationVerdict::Approve;
 
         ModerationLog::create([
             'content_id' => $content->id,
             'layer' => ModerationLayer::Layer2Ai,
-            'result' => $logResult,
-            'detail' => $result->flagged ? ['categories' => $result->categories] : null,
+            'result' => $verdict->toLogResult(),
+            'detail' => $isApproved
+                ? null
+                : ['categories' => $result->categories, 'reason' => $result->reason],
             'duration_ms' => $durationMs,
         ]);
 
-        $transitionService->transition($content, $newStatus);
-
-        $rejectionReason = null;
-        if ($result->flagged) {
-            $parts = array_filter([
-                $result->reason,
-                $result->categories !== [] ? implode(', ', $result->categories) : null,
-            ]);
-            $rejectionReason = 'رد شده توسط بررسی هوش مصنوعی'.($parts !== [] ? ': '.implode(' — ', $parts) : '');
-        }
+        $transitionService->transition($content, $verdict->toContentStatus());
 
         $content->update([
             'ai_categories' => $result->categories,
             'ai_raw_response' => $result->sanitizedRawResponse(),
-            'rejection_reason' => $rejectionReason,
+            'rejection_reason' => $isApproved ? null : $this->buildReason($result->verdict, $result->reason, $result->categories),
         ]);
 
         event(new ContentModerated($content));
+    }
+
+    /**
+     * @param  list<string>  $categories
+     */
+    private function buildReason(ModerationVerdict $verdict, ?string $reason, array $categories): string
+    {
+        $prefix = $verdict === ModerationVerdict::Reject
+            ? 'رد شده توسط بررسی هوش مصنوعی'
+            : 'نیازمند بررسی انسانی';
+
+        $parts = array_filter([
+            $reason,
+            $categories !== [] ? implode(', ', $categories) : null,
+        ]);
+
+        return $prefix.($parts !== [] ? ': '.implode(' — ', $parts) : '');
     }
 
     public function failed(Throwable $exception): void

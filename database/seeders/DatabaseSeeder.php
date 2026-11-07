@@ -26,68 +26,53 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         User::factory(10)->create()->each(function (User $user) {
-
-            $wallet = Wallet::factory()->create([
-                'user_id' => $user->id,
-                'balance' => 0,
-            ]);
-
-            $initialTopUp = Faker::create()->numberBetween(5000, 20000);
-
-            WalletTransaction::create([
-                'wallet_id' => $wallet->id,
-                'type' => WalletTransactionType::Credit->value,
-                'amount' => $initialTopUp,
-                'balance_after' => $initialTopUp,
-                'reference_type' => null,
-                'reference_id' => null,
-                'description' => 'Initial top up',
-            ]);
-
-            $wallet->update(['balance' => $initialTopUp]);
-
-            Content::factory(Faker::create()->numberBetween(2, 5))
-                ->create(['user_id' => $user->id])
-                ->each(function (Content $content) use ($wallet) {
-                    $this->attachModerationTrail($content, $wallet);
-                });
+            $this->createUserWithWallet($user, 5000, 20000);
         });
-
-        User::factory()->create([
+    
+        $testUser = User::factory()->create([
             'name' => 'Test User',
             'email' => 'test@example.com',
-        ])->each(function (User $user) {
-            $wallet = Wallet::factory()->create([
-                'user_id' => $user->id,
-                'balance' => 0,
-            ]);
-            
-            $initialTopUp = Faker::create()->numberBetween(5000, 20000);
-
-            WalletTransaction::create([
-                'wallet_id' => $wallet->id,
-                'type' => WalletTransactionType::Credit->value,
-                'amount' => $initialTopUp,
-                'balance_after' => $initialTopUp,
-                'reference_type' => null,
-                'reference_id' => null,
-                'description' => 'Initial top up',
-            ]);
-
-            $wallet->update(['balance' => $initialTopUp]);
-
-            Content::factory(Faker::create()->numberBetween(2, 5))
-                ->create(['user_id' => $user->id])
-                ->each(function (Content $content) use ($wallet) {
-                    $this->attachModerationTrail($content, $wallet);
-                });
-        });
+        ]);
+    
+        $this->createUserWithWallet($testUser, 50000, 200000);
 
         $this->call([
             BlacklistWordSeeder::class,
         ]);
     }
 
+
+    private function createUserWithWallet(User $user, int $minTopUp, int $maxTopUp): void
+    {
+        $wallet = Wallet::firstOrCreate(
+            ['user_id' => $user->id],
+            ['balance' => 0]
+        );
+
+        if ($wallet->wasRecentlyCreated) {
+            $initialTopUp = fake()->numberBetween($minTopUp, $maxTopUp);
+
+            DB::transaction(function () use ($wallet, $initialTopUp) {
+                $wallet->update([
+                    'balance' => $initialTopUp,
+                ]);
+
+                WalletTransaction::create([
+                    'wallet_id' => $wallet->id,
+                    'type' => WalletTransactionType::Credit->value,
+                    'amount' => $initialTopUp,
+                    'balance_after' => $initialTopUp,
+                    'description' => 'Initial top up',
+                ]);
+            });
+        }
+
+        Content::factory(fake()->numberBetween(2, 5))
+            ->create(['user_id' => $user->id])
+            ->each(function (Content $content) use ($wallet) {
+                $this->attachModerationTrail($content, $wallet);
+            });
+    }
 
     private function attachModerationTrail(Content $content, Wallet $wallet): void
     {
@@ -136,7 +121,7 @@ class DatabaseSeeder extends Seeder
                     'balance_after' => $newBalance,
                     'reference_type' => $content->getMorphClass(),
                     'reference_id' => $content->id,
-                    'description' => 'Content moderation cost #'.$content->id,
+                    'description' => 'Content moderation cost #' . $content->id,
                 ]);
 
                 $locked->update(['balance' => $newBalance]);
