@@ -14,6 +14,7 @@ use App\Models\WalletTransaction;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -27,13 +28,16 @@ class DatabaseSeeder extends Seeder
         $admin = User::factory()->admin()->create([
             'name' => 'مدیر سیستم',
             'email' => 'admin@example.com',
+            'password' => Hash::make('password'),
         ]);
         $this->createUserWithWallet($admin, 10000, 50000);
 
         $apiUser = User::factory()->create([
-            'name' => 'کاربر API',
+            'name' => 'user',
             'email' => 'user@example.com',
+            'password' => Hash::make('password'),
         ]);
+
         $apiUser->wallet->update(['balance' => 50000]);
 
         User::factory(10)->create()->each(function (User $user) {
