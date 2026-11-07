@@ -1,22 +1,22 @@
-# مُهر (Mohr)
+# Mohr
 
-سرویس اعتبارسنجی و moderation محتوا با Laravel 13 و PHP 8.3.
+Content validation and moderation service built with Laravel 13 and PHP 8.3.
 
-## معماری
+## Architecture
 
-1. **لایه ۱ — لیست سیاه محلی:** کلمات `block` (رد کامل) و `flag` (نیاز به بررسی انسانی، بدون AI).
-2. **لایه ۲ — AI (OpenRouter):** طبقه‌بندی JSON و تعیین `approved` / `rejected`.
-3. **کیف پول:** قبل از پردازش، هزینهٔ ثابت هر درخواست کسر می‌شود؛ در خطای سیستمی AI، **حداکثر یک** بازگشت وجه (refund) برای هر محتوا.
-4. **صف:** `moderation` (لایه ۱) و `moderation-ai` (لایه ۲)، با `after_commit` روی اتصال database.
+1. **Layer 1 — Local blacklist:** `block` words (full rejection) and `flag` words (human review, no AI).
+2. **Layer 2 — AI (OpenRouter):** JSON classification and `approved` / `rejected` decisions.
+3. **Wallet:** A fixed per-request fee is deducted before processing; on AI system errors, **at most one** refund per content item.
+4. **Queues:** `moderation` (layer 1) and `moderation-ai` (layer 2), with `after_commit` on the database connection.
 
-## پیش‌نیازها
+## Prerequisites
 
 - PHP ^8.3
 - Composer
-- MySQL (یا SQLite برای تست)
-- Node.js (برای Vite در صورت نیاز به build فرانت)
+- MySQL (or SQLite for testing)
+- Node.js (for Vite if you need to build the frontend)
 
-## نصب
+## Installation
 
 ```bash
 composer install
@@ -26,85 +26,85 @@ php artisan migrate
 npm install && npm run build
 ```
 
-برای دادهٔ نمونه (اختیاری):
+Optional sample data:
 
 ```bash
 php artisan db:seed
 ```
 
-## پیکربندی OpenRouter
+## OpenRouter configuration
 
-در `.env`:
+In `.env`:
 
 - `OPENROUTER_API_KEY`
-- `OPENROUTER_MODEL` (پیش‌فرض: `openrouter/free`)
-- `MODERATION_COST_PER_REQUEST` (تومان، عدد صحیح)
+- `OPENROUTER_MODEL` (default: `openrouter/free`)
+- `MODERATION_COST_PER_REQUEST` (tomans, integer)
 
-تنظیمات متمرکز در `config/moderation.php`.
+Central settings live in `config/moderation.php`.
 
-## صف و worker
+## Queue and worker
 
 ```bash
 php artisan queue:work --queue=moderation,moderation-ai --tries=3
 ```
 
-اتصال پیش‌فرض: `database` (`QUEUE_CONNECTION`). برای production، worker را با supervisor/systemd نگه دارید و `queue:failed` را مانیتور کنید.
+Default connection: `database` (`QUEUE_CONNECTION`). In production, keep the worker running via supervisor/systemd and monitor `queue:failed`.
 
-## کیف پول
+## Wallet
 
-- در **پنل وب** کاربران خودشان نمی‌توانند کیف پول را شارژ کنند (تا اتصال درگاه پرداخت).
-- در **API** شارژ شبیه‌سازی‌شده با `POST /api/v1/wallet/top-up` وجود دارد (فقط برای توسعه/تست).
-- مدیر از پنل ادمین یا `POST /api/v1/admin/users/{user}/top-up` می‌تواند شارژ دستی انجام دهد.
+- In the **web panel**, users cannot top up their wallet yet (pending payment gateway integration).
+- The **API** exposes a simulated top-up via `POST /api/v1/wallet/top-up` (development/testing only).
+- Admins can manually credit users from the admin panel or `POST /api/v1/admin/users/{user}/top-up`.
 
-## مدیر سیستم
+## System administrator
 
-کاربر با نقش `admin` در دیتابیس (یا seeder) به مسیر `/admin` دسترسی دارد. ثبت‌نام همیشه نقش `user` می‌سازد؛ فیلد `role` mass-assignable نیست.
+Users with the `admin` role in the database (or via seeder) can access `/admin`. Registration always creates a `user` role; `role` is not mass-assignable.
 
 ## API
 
-پیشوند: `/api/v1` — احراز هویت با **Laravel Sanctum** (توکن Bearer).
+Prefix: `/api/v1` — authentication via **Laravel Sanctum** (Bearer token).
 
-### حساب‌های seed
+### Seeded accounts
 
-پس از `php artisan db:seed`:
+After `php artisan db:seed`:
 
-| ایمیل | رمز | نقش | موجودی تقریبی |
-|--------|-----|------|----------------|
-| `admin@example.com` | `password` | admin | متغیر |
-| `user@example.com` | `password` | user | ۵۰٬۰۰۰ تومان |
+| Email | Password | Role | Approx. balance |
+|-------|----------|------|-----------------|
+| `admin@example.com` | `password` | admin | varies |
+| `user@example.com` | `password` | user | 50,000 tomans |
 
-### جریان احراز هویت
+### Authentication flow
 
-1. `POST /api/v1/auth/login` با `email` و `password` (اختیاری: `device_name`).
-2. مقدار `token` را در هدر `Authorization: Bearer {token}` بفرستید.
-3. `POST /api/v1/auth/logout` فقط توکن جاری را باطل می‌کند.
+1. `POST /api/v1/auth/login` with `email` and `password` (optional: `device_name`).
+2. Send the returned `token` in the `Authorization: Bearer {token}` header.
+3. `POST /api/v1/auth/logout` revokes only the current token.
 
-انقضای توکن: متغیر env `SANCTUM_TOKEN_EXPIRATION` (دقیقه، پیش‌فرض ۷ روز = `10080`).
+Token expiry: env `SANCTUM_TOKEN_EXPIRATION` (minutes, default 7 days = `10080`).
 
-### جدول endpointها
+### Endpoints
 
-| متد | مسیر | توضیح |
-|-----|------|--------|
-| POST | `/auth/register` | ثبت‌نام |
-| POST | `/auth/login` | ورود (throttle: ۵/دقیقه به ازای ایمیل+IP) |
-| POST | `/auth/logout` | خروج |
-| GET | `/auth/me` | کاربر + موجودی |
-| GET | `/wallet` | موجودی + هزینه هر درخواست |
-| GET | `/wallet/transactions` | تراکنش‌ها (صفحه‌بندی) |
-| POST | `/wallet/top-up` | شارژ شبیه‌سازی‌شده |
-| POST | `/contents` | ارسال محتوا (throttle: ۳۰/دقیقه، async) |
-| GET | `/contents` | فیلتر: `status`, `channel`, `per_page`≤۵۰ |
-| GET | `/contents/{id}` | جزئیات + لاگ‌ها |
-| GET | `/contents/{id}/logs` | لاگ moderation |
-| POST | `/contents/{id}/retry` | تلاش مجدد (۲۰۲ یا ۴۰۹) |
-| GET | `/admin/contents` | همه محتواها (admin) |
-| GET | `/admin/users` | کاربران |
-| POST | `/admin/users/{user}/top-up` | شارژ کاربر |
-| GET/POST/DELETE | `/admin/blacklist` | لیست سیاه |
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/auth/register` | Register |
+| POST | `/auth/login` | Login (throttle: 5/min per email+IP) |
+| POST | `/auth/logout` | Logout |
+| GET | `/auth/me` | Current user + balance |
+| GET | `/wallet` | Balance + cost per request |
+| GET | `/wallet/transactions` | Transactions (paginated) |
+| POST | `/wallet/top-up` | Simulated top-up |
+| POST | `/contents` | Submit content (throttle: 30/min, async) |
+| GET | `/contents` | Filters: `status`, `channel`, `per_page` ≤ 50 |
+| GET | `/contents/{id}` | Details + logs |
+| GET | `/contents/{id}/logs` | Moderation logs |
+| POST | `/contents/{id}/retry` | Retry (202 or 409) |
+| GET | `/admin/contents` | All content (admin) |
+| GET | `/admin/users` | Users |
+| POST | `/admin/users/{user}/top-up` | Credit user |
+| GET/POST/DELETE | `/admin/blacklist` | Blacklist |
 
-خطاهای API: `{"message","code","errors"}` — مثلاً `402` + `insufficient_balance`، `403` + `forbidden`.
+API errors: `{"message","code","errors"}` — e.g. `402` + `insufficient_balance`, `403` + `forbidden`.
 
-### نمونه cURL
+### Example cURL
 
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
@@ -116,26 +116,26 @@ curl -s http://localhost:8000/api/v1/contents \
   -H "Accept: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"body":"متن نمونه برای تست API","channel":"web"}'
+  -d '{"body":"Sample text for API testing","channel":"web"}'
 ```
 
 ### Postman
 
 1. Import: `docs/postman/Mohr.postman_collection.json`
 2. Environment: `docs/postman/Mohr.local.postman_environment.json`
-3. ابتدا **Login (user)** و **Login (admin)** را اجرا کنید؛ سپس بقیه درخواست‌ها.
+3. Run **Login (user)** and **Login (admin)** first; then the remaining requests.
 
-## تست
+## Testing
 
 ```bash
 php artisan test
 ```
 
-تست‌ها از `Http::fake()` برای OpenRouter استفاده می‌کنند و درخواست واقعی به provider نمی‌زنند.
+Tests use `Http::fake()` for OpenRouter and do not call the live provider.
 
-## استقرار
+## Deployment
 
 - `php artisan migrate --force`
-- `php artisan config:cache` / `route:cache` در production
-- راه‌اندازی queue worker
-- `APP_DEBUG=false` و کلیدهای واقعی در `.env` (هرگز commit نشوند)
+- `php artisan config:cache` / `route:cache` in production
+- Run the queue worker
+- Set `APP_DEBUG=false` and real keys in `.env` (never commit them)
