@@ -16,9 +16,12 @@ class ContentResource extends JsonResource
             'status_label' => $this->status->label(),
             'channel' => $this->channel,
             'rejection_reason' => $this->rejection_reason,
+            'ai_categories' => $this->ai_categories,
             'cost' => $this->cost,
+            'retry_count' => $this->retry_count,
             'processed_at' => $this->processed_at?->toIso8601String(),
             'created_at' => $this->created_at->toIso8601String(),
+            'user' => UserResource::make($this->whenLoaded('user')),
             'logs' => ModerationLogResource::collection($this->whenLoaded('logs')),
         ];
     }

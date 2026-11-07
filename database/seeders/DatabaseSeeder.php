@@ -2,18 +2,17 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
-use Faker\Factory as Faker;
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
-use App\Models\Content;
-use App\Models\ModerationLog;
-use App\Enums\ModerationResult;
 use App\Enums\ContentStatus;
 use App\Enums\ModerationLayer;
+use App\Enums\ModerationResult;
 use App\Enums\WalletTransactionType;
+use App\Models\Content;
+use App\Models\ModerationLog;
+use App\Models\User;
+use App\Models\Wallet;
+use App\Models\WalletTransaction;
+use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
 class DatabaseSeeder extends Seeder
@@ -25,22 +24,26 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        $admin = User::factory()->admin()->create([
+            'name' => 'مدیر سیستم',
+            'email' => 'admin@example.com',
+        ]);
+        $this->createUserWithWallet($admin, 10000, 50000);
+
+        $apiUser = User::factory()->create([
+            'name' => 'کاربر API',
+            'email' => 'user@example.com',
+        ]);
+        $apiUser->wallet->update(['balance' => 50000]);
+
         User::factory(10)->create()->each(function (User $user) {
             $this->createUserWithWallet($user, 5000, 20000);
         });
-    
-        $testUser = User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
-    
-        $this->createUserWithWallet($testUser, 50000, 200000);
 
         $this->call([
             BlacklistWordSeeder::class,
         ]);
     }
-
 
     private function createUserWithWallet(User $user, int $minTopUp, int $maxTopUp): void
     {
@@ -106,7 +109,6 @@ class DatabaseSeeder extends Seeder
             ]);
         }
 
-
         if ($content->status !== ContentStatus::Pending) {
             $cost = (int) config('moderation.cost_per_request', 1000);
 
@@ -121,7 +123,7 @@ class DatabaseSeeder extends Seeder
                     'balance_after' => $newBalance,
                     'reference_type' => $content->getMorphClass(),
                     'reference_id' => $content->id,
-                    'description' => 'Content moderation cost #' . $content->id,
+                    'description' => 'Content moderation cost #'.$content->id,
                 ]);
 
                 $locked->update(['balance' => $newBalance]);

@@ -63,7 +63,11 @@ class ModerationPipelineTest extends TestCase
         Http::fake([
             '*' => Http::response([
                 'choices' => [
-                    ['message' => ['content' => json_encode(['flagged' => false, 'categories' => []])]],
+                    ['message' => ['content' => json_encode([
+                        'verdict' => 'approve',
+                        'categories' => [],
+                        'reason' => 'ok',
+                    ])]],
                 ],
             ]),
         ]);

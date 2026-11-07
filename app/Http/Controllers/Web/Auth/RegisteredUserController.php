@@ -2,16 +2,11 @@
 
 namespace App\Http\Controllers\Web\Auth;
 
-use App\Enums\UserRole;
+use App\Actions\Auth\RegisterUserAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RegisterUserRequest;
-use App\Models\User;
-use App\Models\Wallet;
-use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\View\View;
 
 class RegisteredUserController extends Controller
@@ -21,26 +16,13 @@ class RegisteredUserController extends Controller
         return view('auth.register');
     }
 
-    public function store(RegisterUserRequest $request): RedirectResponse
+    public function store(RegisterUserRequest $request, RegisterUserAction $registerUserAction): RedirectResponse
     {
-        $user = DB::transaction(function () use ($request) {
-            $user = User::create([
-                'name' => $request->validated('name'),
-                'email' => $request->validated('email'),
-                'password' => Hash::make($request->validated('password')),
-                'role' => UserRole::User,
-            ]);
-
-            // هر کاربر جدید، همزمان یه کیف پول خالی می‌گیره
-            Wallet::create([
-                'user_id' => $user->id,
-                'balance' => 0,
-            ]);
-
-            return $user;
-        });
-
-        event(new Registered($user));
+        $user = $registerUserAction->execute(
+            name: $request->validated('name'),
+            email: $request->validated('email'),
+            password: $request->validated('password'),
+        );
 
         Auth::login($user);
 
